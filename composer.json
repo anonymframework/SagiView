@@ -1,0 +1,14 @@
+{
+    "name": "sagi/sagi-view",
+    "description": "Sagi View is simple view library like laravel blade",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "anonymframework",
+            "email": "vahit.serif119@gmail.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {}
+}
