@@ -25,6 +25,16 @@ class View
     private $file;
 
     /**
+     * @var Compiler
+     */
+    private $compiler;
+
+    /**
+     * @var
+     */
+    private $dalvikPath;
+
+    /**
      * View constructor.
      * @param array $configs
      * @throws Exception
@@ -57,13 +67,93 @@ class View
         return $this;
     }
 
+    /**
+     * @param null $file
+     */
     public function render($file = null)
     {
-
         if (!is_null($file)) {
             $this->setFile($file);
         }
 
+        if ($content = $this->getFileContent()) {
+            $replaceContent = $this->handleContent($content);
+
+
+            $this->putContentOnDalvik($replaceContent);
+            return $this;
+        } else {
+            throw new Exception($file . ' does not exists in your view_path');
+        }
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function show()
+    {
+        $data = $this->getArgs();
+
+        extract($data, EXTR_SKIP);
+
+        if (!empty($this->dalvikPath)) {
+            try {
+                include $this->dalvikPath;
+            } catch (Exception $e) {
+                throw new Exception("Gösterme işlemi sırasında bir hata oluştu:, message:" . $e->getMessage());
+            }
+        }
+
+    }
+
+    /**
+     * @param string $content
+     */
+    private function putContentOnDalvik($content)
+    {
+        $this->dalvikPath = $dalvikFile = $this->configs['dalvik_path'] . DIRECTORY_SEPARATOR . md5($this->getFile()) . ".php";
+
+
+        if (!file_exists($dalvikFile)) {
+            chmod($this->configs['dalvik_path'], 0777);
+            touch($dalvikFile);
+        }
+        file_put_contents($dalvikFile, $content);
+
+    }
+
+    /**
+     * @param $content
+     * @return mixed
+     */
+    private function handleContent($content)
+    {
+        return $this->getCompiler()->compile($content);
+    }
+
+    /**
+     * @return string
+     */
+    private function getFileContent()
+    {
+        if ($path = $this->findFile($this->getFile())) {
+            return file_get_contents($path);
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * @param $file
+     * @return string
+     */
+    private function findFile($file)
+    {
+        $fullpath = $this->configs['view_path'] . DIRECTORY_SEPARATOR . $file . ".blade.php";
+
+        if (file_exists($fullpath)) {
+            return $fullpath;
+        }
     }
 
     /**
@@ -79,6 +169,24 @@ class View
             mkdir($this->configs['dalvik_path'], 0777);
 
         }
+    }
+
+    /**
+     * @return Compiler
+     */
+    public function getCompiler()
+    {
+        return $this->compiler;
+    }
+
+    /**
+     * @param Compiler $compiler
+     * @return View
+     */
+    public function setCompiler($compiler)
+    {
+        $this->compiler = $compiler;
+        return $this;
     }
 
 
@@ -137,4 +245,13 @@ class View
     }
 
 
+}
+
+function _e($content, $cleanHtml = true)
+{
+    if ($cleanHtml) {
+        echo htmlspecialchars(htmlentities(strip_tags($content)));
+    } else {
+        echo $content;
+    }
 }
