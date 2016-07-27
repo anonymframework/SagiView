@@ -49,6 +49,7 @@ class View
         }
 
         $this->file = $file;
+        $this->setCompiler(new Compiler());
     }
 
     /**
