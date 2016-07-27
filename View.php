@@ -151,8 +151,14 @@ class View
     private function procressMethod($raw, $m)
     {
         $methodName = 'compile' . ucfirst($raw);
+        $argsN = [];
+        $args = explode(',', $m[4]);
 
-        return '<?php $viewClassObject->' . $methodName . $m[3] . '; ?>';
+        foreach ($args as $item) {
+            $argsN[] = str_replace(["'", '"'], "", $item);
+        }
+
+        return call_user_func_array(array($this, $methodName), $argsN);
     }
 
     /**
@@ -160,8 +166,9 @@ class View
      */
     public function compileInc($file)
     {
+        $content = $this->render($file, true);
 
-
+        return $content;
     }
 
     /**
@@ -230,15 +237,16 @@ class View
             $this->setFile($file);
         }
 
+        $this->with('viewClassObject', $this);
         if ($content = $this->getFileContent()) {
+
             $replaceContent = $this->handleContent($content);
 
-
-            $this->putContentOnDalvik($replaceContent);
 
             if ($return) {
                 return $replaceContent;
             } else {
+                $this->putContentOnDalvik($replaceContent);
                 return $this;
             }
         } else {
