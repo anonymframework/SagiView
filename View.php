@@ -126,7 +126,7 @@ class View
 
             if (array_search($raw, $this->loopTags) !== false) {
                 $content = str_replace($matches[0], "<?php " . $match . ": ?>", $content);
-            } elseif (array_search($raw, $this->rawTags) !== false) {
+            } elseif (array_search($raw, $this->endTags) !== false) {
                 $content = str_replace($matches[0], "<?php " . $match . "; ?>", $content);
             } elseif (array_search($raw, $this->selfMethods) !== false) {
                 $replace = $this->procressMethod($raw, $m);
