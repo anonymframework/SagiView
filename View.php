@@ -24,15 +24,49 @@ class View
      */
     private $file;
 
-    /**
-     * @var Compiler
-     */
-    private $compiler;
 
     /**
      * @var
      */
     private $dalvikPath;
+
+
+    /**
+     * @var array
+     */
+
+    private $rawTags = ["{!!", "!!}"];
+    /**
+     * @var array
+     */
+    private $contentTags = ["{{", "}}"];
+
+    /**
+     * @var array
+     */
+    private $endTags = [
+        'endif',
+        'endwhile',
+        'endfor',
+        'endforeach',
+        'break'
+    ];
+
+    /**
+     * @var array
+     */
+    private $loopTags = [
+        'if',
+        'while',
+        'for',
+        'foreach',
+        'swith',
+        'case'
+    ];
+
+    private $selfMethods = [
+        'inc'
+    ];
 
     /**
      * View constructor.
@@ -49,15 +83,133 @@ class View
         }
 
         $this->file = $file;
-        $this->setCompiler(new Compiler());
+        $this->with('viewClassObject', $this);
     }
+
+    /**
+     * @param $content
+     * @return mixed
+     */
+    private function compile($content)
+    {
+        $parsed = explode("\n", $content);
+
+        $newContent = '';
+        foreach ($parsed as $line) {
+            $lineContent = $this->compileTags($line);
+            $newContent .= $lineContent . "\n";
+        }
+
+        return $newContent;
+    }
+
+    private function compileTags($content)
+    {
+        $contentPattern = "/" . $this->contentTags[0] . "(.*?)" . $this->contentTags[1] . "/s";
+        $rawPattern = "/" . $this->rawTags[0] . "(.*?)" . $this->rawTags[1] . "/s";
+
+
+        $content = $this->compileOpenedTags($content);
+        $content = $this->compileContentEchos($content, $contentPattern);
+        $content = $this->compileRawEchos($content, $rawPattern);
+
+        return $content;
+    }
+
+    private function compileOpenedTags($content)
+    {
+        if (preg_match("/@(.*)/s", $content, $matches)) {
+
+            $match = $matches[1];
+            preg_match('/\B@(@?\w+(?:::\w+)?)([ \t]*)(\( ( (?>[^()]+) | (?3) )* \))?/x', $matches[0], $m);
+            $raw = $m[1];
+
+            if (array_search($raw, $this->loopTags) !== false) {
+                $content = str_replace($matches[0], "<?php " . $match . ": ?>", $content);
+            } elseif (array_search($raw, $this->rawTags) !== false) {
+                $content = str_replace($matches[0], "<?php " . $match . "; ?>", $content);
+            } elseif (array_search($raw, $this->selfMethods) !== false) {
+                $replace = $this->procressMethod($raw, $m);
+                $content = str_replace($matches[0], $replace, $content);
+            } else {
+                $content = str_replace($matches[0], "<?php " . $match . "; ?>", $content);
+            }
+
+
+        }
+
+
+        return $content;
+    }
+
+
+    /**
+     * @param $raw
+     * @param $m
+     * @return string
+     */
+    private function procressMethod($raw, $m)
+    {
+        $methodName = 'compile' . ucfirst($raw);
+
+        return '<?php $viewClassObject->' . $methodName . $m[3] . '; ?>';
+    }
+
+    /**
+     * @param $file
+     */
+    public function compileInc($file)
+    {
+
+
+    }
+
+    /**
+     * @param $content
+     * @param $rawPattern
+     * @return string
+     */
+    private
+    function compileRawEchos($content, $rawPattern)
+    {
+        if (preg_match_all($rawPattern, $content, $matches)) {
+
+            for ($i = 0; $i < count($matches[0]); $i++) {
+                $match = $matches[0][$i];
+                $content = str_replace($match, '<?php _e(' . $matches[1][$i] . ', false); ?>', $content);
+            }
+        }
+
+        return $content;
+    }
+
+    /**
+     * @param $content
+     * @param $contentPattern
+     * @return mixed
+     */
+    private
+    function compileContentEchos($content, $contentPattern)
+    {
+        if (preg_match_all($contentPattern, $content, $matches)) {
+            for ($i = 0; $i < count($matches[0]);
+                 $i++) {
+                $match = $matches[0][$i];
+                $content = str_replace($match, '<?php _e(' . $matches[1][$i] . '); ?>', $content);
+            }
+        }
+
+        return $content;
+    }
+
 
     /**
      * @param mixed $a
      * @param null $b
      * @return $this
      */
-    public function with($a, $b = null)
+    public
+    function with($a, $b = null)
     {
         if (is_null($b)) {
             $this->args = array_merge($this->args, $a);
@@ -71,7 +223,8 @@ class View
     /**
      * @param null $file
      */
-    public function render($file = null)
+    public
+    function render($file = null, $return = false)
     {
         if (!is_null($file)) {
             $this->setFile($file);
@@ -82,7 +235,12 @@ class View
 
 
             $this->putContentOnDalvik($replaceContent);
-            return $this;
+
+            if ($return) {
+                return $replaceContent;
+            } else {
+                return $this;
+            }
         } else {
             throw new Exception($file . ' does not exists in your view_path');
         }
@@ -91,7 +249,8 @@ class View
     /**
      * @throws Exception
      */
-    public function show()
+    public
+    function show()
     {
         $data = $this->getArgs();
 
@@ -110,7 +269,8 @@ class View
     /**
      * @param string $content
      */
-    private function putContentOnDalvik($content)
+    private
+    function putContentOnDalvik($content)
     {
         $this->dalvikPath = $dalvikFile = $this->configs['dalvik_path'] . DIRECTORY_SEPARATOR . md5($this->getFile()) . ".php";
 
@@ -127,15 +287,17 @@ class View
      * @param $content
      * @return mixed
      */
-    private function handleContent($content)
+    private
+    function handleContent($content)
     {
-        return $this->getCompiler()->compile($content);
+        return $this->compile($content);
     }
 
     /**
      * @return string
      */
-    private function getFileContent()
+    private
+    function getFileContent()
     {
         if ($path = $this->findFile($this->getFile())) {
             return file_get_contents($path);
@@ -148,7 +310,8 @@ class View
      * @param $file
      * @return string
      */
-    private function findFile($file)
+    private
+    function findFile($file)
     {
         $fullpath = $this->configs['view_path'] . DIRECTORY_SEPARATOR . $file . ".blade.php";
 
@@ -160,7 +323,8 @@ class View
     /**
      * checks dirs exists
      */
-    private function checkDirs()
+    private
+    function checkDirs()
     {
         if (!is_dir($this->configs['view_path'])) {
             mkdir($this->configs['view_path'], 0777);
@@ -175,7 +339,8 @@ class View
     /**
      * @return Compiler
      */
-    public function getCompiler()
+    public
+    function getCompiler()
     {
         return $this->compiler;
     }
@@ -184,7 +349,8 @@ class View
      * @param Compiler $compiler
      * @return View
      */
-    public function setCompiler($compiler)
+    public
+    function setCompiler($compiler)
     {
         $this->compiler = $compiler;
         return $this;
@@ -194,7 +360,8 @@ class View
     /**
      * @return array
      */
-    public function getConfigs()
+    public
+    function getConfigs()
     {
         return $this->configs;
     }
@@ -203,7 +370,8 @@ class View
      * @param array $configs
      * @return View
      */
-    public function setConfigs($configs)
+    public
+    function setConfigs($configs)
     {
         $this->configs = $configs;
         return $this;
@@ -212,7 +380,8 @@ class View
     /**
      * @return string
      */
-    public function getFile()
+    public
+    function getFile()
     {
         return $this->file;
     }
@@ -220,7 +389,8 @@ class View
     /**
      * @param string $file
      */
-    public function setFile($file)
+    public
+    function setFile($file)
     {
         $this->file = $file;
 
@@ -230,7 +400,8 @@ class View
     /**
      * @return array
      */
-    public function getArgs()
+    public
+    function getArgs()
     {
         return $this->args;
     }
@@ -239,7 +410,8 @@ class View
      * @param array $args
      * @return View
      */
-    public function setArgs($args)
+    public
+    function setArgs($args)
     {
         $this->args = $args;
         return $this;
